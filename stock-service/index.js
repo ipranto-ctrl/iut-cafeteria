@@ -22,39 +22,57 @@ const redisClient = redis.createClient({
 
 redisClient.on('error', (err) => console.log('Redis Client Error', err));
 
-async function setupDatabase() {
-    await redisClient.connect();
-    console.log("⚡ Connected to Redis");
+// 2. Automatically create and seed the inventory table (WITH RETRY LOGIC)
+async function setupDatabase(retries = 5) {
+    while (retries > 0) {
+        try {
+            // Only try to connect to Redis if it isn't already connected
+            if (!redisClient.isOpen) {
+                await redisClient.connect();
+                console.log("⚡ Connected to Redis");
+            }
 
-    await pool.query(`
-        CREATE TABLE IF NOT EXISTS inventory (
-            item_name VARCHAR(50) PRIMARY KEY,
-            stock_count INT NOT NULL,
-            version INT DEFAULT 1
-        );
-    `);
+            // Create the table
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS inventory (
+                    item_name VARCHAR(50) PRIMARY KEY,
+                    stock_count INT NOT NULL,
+                    version INT DEFAULT 1
+                );
+            `);
 
-    // Seed the database with the expanded menu
-    await pool.query(`
-        INSERT INTO inventory (item_name, stock_count, version) 
-        VALUES 
-            ('Spaghetti', 100, 1),
-            ('Biriyani', 50, 1),
-            ('Rice', 200, 1),
-            ('Juice', 150, 1),
-            ('Burger', 75, 1),
-            ('Halim', 40, 1)
-        ON CONFLICT (item_name) DO NOTHING;
-    `);
+            // Seed the initial menu
+            await pool.query(`
+                INSERT INTO inventory (item_name, stock_count, version) 
+                VALUES 
+                    ('Spaghetti', 100, 1),
+                    ('Biriyani', 50, 1),
+                    ('Rice', 200, 1),
+                    ('Juice', 150, 1),
+                    ('Burger', 75, 1),
+                    ('Halim', 40, 1)
+                ON CONFLICT (item_name) DO NOTHING;
+            `);
 
-    const items = ['Spaghetti', 'Biriyani', 'Rice', 'Juice', 'Burger', 'Halim'];
-    for (const item of items) {
-        const res = await pool.query("SELECT stock_count FROM inventory WHERE item_name = $1", [item]);
-        if (res.rows.length > 0) {
-            await redisClient.set(`stock:${item}`, res.rows[0].stock_count);
+            // Sync PostgreSQL data into Redis Cache
+            const items = ['Spaghetti', 'Biriyani', 'Rice', 'Juice', 'Burger', 'Halim'];
+            for (const item of items) {
+                const res = await pool.query("SELECT stock_count FROM inventory WHERE item_name = $1", [item]);
+                if (res.rows.length > 0) {
+                    await redisClient.set(`stock:${item}`, res.rows[0].stock_count);
+                }
+            }
+            
+            console.log("📦 Stock Database seeded and Redis cached.");
+            return; // Success! Exit the loop.
+
+        } catch (err) {
+            console.error(`⚠️ Databases not ready yet. Retrying in 3 seconds... (Retries left: ${retries - 1})`);
+            retries -= 1;
+            await new Promise(res => setTimeout(res, 3000));
         }
     }
-    console.log("📦 Database seeded and Redis cached.");
+    console.error("❌ Fatal Error: Stock Service could not connect to databases.");
 }
 setupDatabase();
 
