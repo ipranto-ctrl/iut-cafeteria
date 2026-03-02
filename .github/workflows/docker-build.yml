@@ -15,4 +15,4 @@ jobs:
 
     - name: Test Docker Compose Build
       # This forces GitHub to build your 6 microservices to prove they compile
-      run: docker-compose build
+      run: docker compose build
