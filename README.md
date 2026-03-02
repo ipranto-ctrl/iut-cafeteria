@@ -18,6 +18,8 @@ Kitchen Queue (Port 3005): A background worker that pulls from RabbitMQ, simulat
 
 Notification Hub (Port 3004): Consumes completed orders from RabbitMQ and pushes real-time alerts to the specific student's browser via WebSockets (Socket.io).
 
+Automated CI/CD Pipeline: Integrated GitHub Actions to automatically validate Docker container builds on every push, ensuring continuous integration and deployment stability.
+
 💻 Tech Stack
 Backend Runtime: Node.js & Express.js
 
