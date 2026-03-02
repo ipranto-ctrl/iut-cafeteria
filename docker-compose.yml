@@ -5,22 +5,21 @@ services:
   postgres-db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: postgres      # Make sure this matches your Node.js code!
-      POSTGRES_PASSWORD: password  # Make sure this matches your Node.js code!
+      POSTGRES_USER: postgres      
+      POSTGRES_PASSWORD: password  
       POSTGRES_DB: postgres
     ports:
-      - "5432:5432"
-
+      - "5433:5432" # CHANGED: 5433 on the outside maps to 5432 on the inside
   redis-cache:
     image: redis:alpine
     ports:
-      - "6379:6379"
+      - "6380:6379" # CHANGED: 6380 on the outside maps to 6379 on the inside
 
   rabbitmq-broker:
     image: rabbitmq:3-management-alpine
     ports:
-      - "5672:5672"
-      - "15672:15672" # Admin UI
+      - "5673:5672"   # CHANGED to 5673
+      - "15673:15672" # CHANGED to 15673
 
   # --- 2. MICROSERVICES ---
   identity-provider:
