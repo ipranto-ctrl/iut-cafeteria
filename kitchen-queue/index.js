@@ -1,36 +1,42 @@
 const amqp = require('amqplib');
+const express = require('express');
+const cors = require('cors');
 
-async function startKitchen() {
+const app = express();
+app.use(cors());
+
+// Health Monitor for Admin Dashboard
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: "OK", service: "Kitchen Queue" });
+});
+app.listen(3005, () => console.log("🩺 Kitchen Health Monitor on Port 3005"));
+
+async function startKitchenWorker() {
     try {
-        const connection = await amqp.connect('amqp://localhost');
+        const connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://localhost');
         const channel = await connection.createChannel();
         
-        // The queue where we receive orders
-        const inputQueue = 'kitchen_orders';
-        // The queue where we send finished orders
-        const outputQueue = 'completed_orders'; 
-
-        await channel.assertQueue(inputQueue, { durable: true });
-        await channel.assertQueue(outputQueue, { durable: true });
+        await channel.assertQueue('kitchen_orders', { durable: true });
+        await channel.assertQueue('completed_orders', { durable: true });
         
-        console.log(`👨‍🍳 Kitchen Queue waiting for orders...`);
+        // Only process one order at a time to simulate physical cooking
+        channel.prefetch(1);
+        console.log("👨‍🍳 Kitchen Worker ready and waiting for orders...");
 
-        channel.consume(inputQueue, (msg) => {
+        channel.consume('kitchen_orders', (msg) => {
             if (msg !== null) {
-                const order = JSON.parse(msg.content.toString());
-                console.log(`\n🔔 NEW ORDER: ${order.itemName} for Student ${order.studentId}`);
-                
-                setTimeout(() => {
-                    console.log(`✅ ORDER READY: ${order.itemName}. Sending to Notification Hub!`);
-                    
-                    // NEW: Tell the Notification Hub the food is ready!
-                    channel.sendToQueue(outputQueue, Buffer.from(JSON.stringify({
-                        studentId: order.studentId,
-                        itemName: order.itemName,
-                        status: 'Ready'
-                    })));
+                const orderData = JSON.parse(msg.content.toString());
+                console.log(`🍳 Cooking: ${orderData.itemName} for Student ${orderData.studentId}`);
 
-                    channel.ack(msg); // Remove original ticket
+                // Simulate 5 seconds of cooking time
+                setTimeout(() => {
+                    console.log(`✅ Finished: ${orderData.itemName}`);
+                    
+                    // Send to Notification Hub
+                    channel.sendToQueue('completed_orders', Buffer.from(JSON.stringify(orderData)));
+                    
+                    // Tell RabbitMQ we are ready for the next order
+                    channel.ack(msg);
                 }, 5000); 
             }
         });
@@ -38,15 +44,4 @@ async function startKitchen() {
         console.error("RabbitMQ Error:", error);
     }
 }
-startKitchen();
-// NEW: Minimal Express server just for Health Monitoring
-const express = require('express');
-const cors = require('cors');
-const app = express();
-app.use(cors());
-
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: "OK", service: "Kitchen Queue" });
-});
-
-app.listen(3005, () => console.log("🩺 Kitchen Queue Health Monitor on Port 3005"));
+startKitchenWorker();

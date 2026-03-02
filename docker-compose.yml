@@ -1,32 +1,79 @@
 version: '3.8'
 
 services:
-  # 1. The Main Database (For users, stock, and permanent orders)
-  postgres:
+  # --- 1. DATABASES & BROKERS ---
+  postgres-db:
     image: postgres:15-alpine
-    container_name: cafeteria-db
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: secretpassword
-      POSTGRES_DB: cafeteria
+      POSTGRES_USER: postgres      # Make sure this matches your Node.js code!
+      POSTGRES_PASSWORD: password  # Make sure this matches your Node.js code!
+      POSTGRES_DB: postgres
     ports:
       - "5432:5432"
-    restart: always
 
-  # 2. The High-Speed Cache (For instantly checking if spaghetti is in stock)
-  redis:
-    image: redis:7-alpine
-    container_name: cafeteria-cache
+  redis-cache:
+    image: redis:alpine
     ports:
       - "6379:6379"
-    restart: always
 
-  # 3. The Message Broker (For the asynchronous Kitchen Queue)
-  rabbitmq:
-    # We use the 'management' tag so we get a nice visual dashboard!
+  rabbitmq-broker:
     image: rabbitmq:3-management-alpine
-    container_name: cafeteria-broker
     ports:
-      - "5672:5672"   # The port our Node.js apps will use to send messages
-      - "15672:15672" # The port for the visual web dashboard
-    restart: always
+      - "5672:5672"
+      - "15672:15672" # Admin UI
+
+  # --- 2. MICROSERVICES ---
+  identity-provider:
+    build: ./identity-provider
+    ports:
+      - "3001:3001"
+    environment:
+      - DB_HOST=postgres-db # Docker networking automatically resolves this name!
+    depends_on:
+      - postgres-db
+
+  stock-service:
+    build: ./stock-service
+    ports:
+      - "3002:3002"
+    environment:
+      - DB_HOST=postgres-db
+      - REDIS_URL=redis://redis-cache:6379
+    depends_on:
+      - postgres-db
+      - redis-cache
+
+  order-gateway:
+    build: ./order-gateway
+    ports:
+      - "3003:3003"
+    environment:
+      - REDIS_URL=redis://redis-cache:6379
+      - RABBITMQ_URL=amqp://rabbitmq-broker
+    depends_on:
+      - redis-cache
+      - rabbitmq-broker
+
+  notification-hub:
+    build: ./notification-hub
+    ports:
+      - "3004:3004"
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq-broker
+    depends_on:
+      - rabbitmq-broker
+
+  kitchen-queue:
+    build: ./kitchen-queue
+    ports:
+      - "3005:3005"
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq-broker
+    depends_on:
+      - rabbitmq-broker
+
+  # --- 3. FRONTEND ---
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80" # Maps your browser's port 3000 to Nginx's port 80

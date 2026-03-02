@@ -7,45 +7,39 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
-// WebSockets require us to wrap the Express app in a raw Node HTTP server
+// Health Endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: "OK" });
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
-    cors: { origin: "*" } // Allow our future frontend to connect
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-// 1. Handle WebSocket Connections from the Student UI
 io.on('connection', (socket) => {
-    console.log(`🟢 New frontend client connected: ${socket.id}`);
+    console.log(`🔌 Client connected: ${socket.id}`);
     
-    // When a student logs into the UI, they tell us their Student ID
+    // Student joins a private room using their Student ID
     socket.on('join_room', (studentId) => {
         socket.join(studentId);
-        console.log(`Student ${studentId} joined their personal notification room.`);
-    });
-
-    socket.on('disconnect', () => {
-        console.log(`🔴 Client disconnected: ${socket.id}`);
     });
 });
 
-// 2. Listen to the Kitchen via RabbitMQ
-async function listenToKitchen() {
+async function connectRabbitMQ() {
     try {
-        const connection = await amqp.connect('amqp://localhost');
+        const connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://localhost');
         const channel = await connection.createChannel();
-        const queue = 'completed_orders';
+        
+        await channel.assertQueue('completed_orders', { durable: true });
+        console.log("🐇 Notification Hub listening to completed_orders");
 
-        await channel.assertQueue(queue, { durable: true });
-        console.log(`📡 Notification Hub listening to Kitchen on '${queue}'...`);
-
-        channel.consume(queue, (msg) => {
+        channel.consume('completed_orders', (msg) => {
             if (msg !== null) {
-                const finishedOrder = JSON.parse(msg.content.toString());
+                const orderData = JSON.parse(msg.content.toString());
                 
-                // 3. Push the update directly to the specific student's UI!
-                // Using .to(studentId) ensures we don't send the alert to the wrong student.
-                io.to(finishedOrder.studentId).emit('order_update', finishedOrder);
-                console.log(`🚀 Pushed 'Ready' status to Student ${finishedOrder.studentId}`);
+                // Alert the specific student's browser
+                io.to(orderData.studentId).emit('order_update', orderData);
                 
                 channel.ack(msg);
             }
@@ -54,14 +48,8 @@ async function listenToKitchen() {
         console.error("RabbitMQ Error:", error);
     }
 }
+connectRabbitMQ();
 
-listenToKitchen();
-
-const PORT = 3004;
-// HEALTH ENDPOINT
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: "OK" });
-});
-server.listen(PORT, () => {
-    console.log(`📢 Notification Hub running on http://localhost:${PORT}`);
+server.listen(3004, () => {
+    console.log("🔔 Notification Hub on Port 3004");
 });

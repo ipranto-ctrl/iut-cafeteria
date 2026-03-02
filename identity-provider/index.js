@@ -12,13 +12,7 @@ app.use(cors());
 const SECRET_KEY = 'super-secret-cafeteria-key'; 
 
 // 1. Connect to PostgreSQL
-const pool = new Pool({
-    user: 'admin',
-    host: 'localhost',
-    database: 'cafeteria',
-    password: 'secretpassword',
-    port: 5432,
-});
+host: process.env.DB_HOST || 'localhost',
 
 // 2. Automatically create the users table
 async function setupAuthDatabase() {
