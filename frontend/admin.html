@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - System Health</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f1115;
+            --bg-card: #1a1d24;
+            --iut-red: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-dark);
+            background-image: radial-gradient(#2dd4bf15 1px, transparent 1px);
+            background-size: 30px 30px;
+            color: var(--text-main);
+            min-height: 100vh; margin: 0; display: flex; flex-direction: column; align-items: center; padding: 40px 20px;
+        }
+
+        .navbar { width: 100%; max-width: 800px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid #333; margin-bottom: 30px; }
+        .nav-logo { display: flex; align-items: center; gap: 15px; }
+        .nav-logo img { width: 40px; height: 40px; border-radius: 50%; background: white; padding: 2px; }
+        
+        .card { 
+            background-color: var(--bg-card); padding: 30px 40px; border-radius: 12px; 
+            border: 1px solid rgba(255, 255, 255, 0.05); width: 100%; max-width: 500px; text-align: center; box-sizing: border-box;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .hidden { display: none !important; }
+
+        input, select {
+            width: 100%; padding: 12px 15px; margin-bottom: 15px; border: 1px solid #333; border-radius: 8px;
+            background: var(--bg-dark); color: white; box-sizing: border-box; font-family: 'Inter';
+        }
+        input:focus, select:focus { outline: none; border-color: var(--iut-red); }
+
+        button { 
+            width: 100%; padding: 14px 15px; cursor: pointer; background-color: var(--iut-red); 
+            color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 1.1rem; transition: 0.2s;
+        }
+        button:hover { filter: brightness(1.1); }
+        button.chaos-btn { background-color: #7f1d1d; border: 1px solid var(--iut-red); }
+
+        #admin-msg { margin-top: 15px; font-weight: 600; color: var(--iut-red); }
+
+        /* The Health Grid Styling */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; }
+        .node-card { padding: 15px; border-radius: 8px; font-weight: bold; font-size: 14px; border: 1px solid #333; transition: 0.3s; background: var(--bg-dark); }
+        .online { border-color: #22c55e; color: #22c55e; box-shadow: 0 0 10px rgba(34, 197, 94, 0.1); }
+        .offline { border-color: var(--iut-red); color: var(--iut-red); box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
+        small { font-weight: normal; font-size: 0.85em; opacity: 0.8; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <div class="nav-logo">
+            <img src="iut-logo.png" alt="IUT Logo">
+            <div>
+                <h1 style="margin: 0; font-size: 1.2rem; color: var(--iut-red);">Command Center</h1>
+                <p style="margin: 0; font-size: 0.7rem; color: var(--text-muted);">System Administrator Access</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-login-section" class="card">
+        <h2 style="margin-top: 0;">Restricted Access</h2>
+        <input type="password" id="adminPassword" placeholder="Admin Password">
+        <button onclick="adminLogin()">Authenticate</button>
+        <p id="admin-msg"></p>
+    </div>
+
+    <div id="dashboard-section" class="card hidden" style="max-width: 600px;">
+        
+        <h2 style="margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px;">System Health</h2>
+        <div class="grid">
+            <div id="node-3001" class="node-card offline">Identity Provider<br><small>(Port 3001)</small></div>
+            <div id="node-3002" class="node-card offline">Stock Service<br><small>(Port 3002)</small></div>
+            <div id="node-3003" class="node-card offline">Order Gateway<br><small>(Port 3003)</small></div>
+            <div id="node-3004" class="node-card offline">Notification Hub<br><small>(Port 3004)</small></div>
+            <div id="node-3005" class="node-card offline" style="grid-column: 1 / -1;">Kitchen Queue<br><small>(Port 3005)</small></div>
+        </div>
+
+        <h2 style="margin-top: 40px; border-bottom: 1px solid #333; padding-bottom: 10px;">Inventory Management</h2>
+        <div style="text-align: left;">
+            <label style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px; display: block;">Select Item to Manage:</label>
+            <select id="itemSelect" onchange="fetchStock()">
+                <option value="Spaghetti">Spaghetti</option>
+                <option value="Biriyani">Biriyani</option>
+                <option value="Rice">Rice</option>
+                <option value="Juice">Juice</option>
+                <option value="Burger">Burger</option>
+                <option value="Halim">Halim</option>
+            </select>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid #333; margin-top: 10px;">
+            <span style="font-size: 1.1rem; font-weight: bold;">Current Stock:</span>
+            <span id="current-stock" style="font-size: 1.8rem; font-weight: 800; color: #22c55e;">--</span>
+        </div>
+        
+        <div style="display: flex; gap: 10px; margin-top: 15px;">
+            <input type="number" id="newStockInput" placeholder="New Quantity" style="margin-bottom: 0; width: 60%;">
+            <button onclick="updateStock()" style="width: 40%;">Set Stock</button>
+        </div>
+
+        <h2 style="margin-top: 40px; border-bottom: 1px solid #333; padding-bottom: 10px; color: var(--iut-red);">Chaos Engineering</h2>
+        <button class="chaos-btn" onclick="triggerChaos()" style="margin-top: 10px;">💀 KILL STOCK SERVICE</button>
+        
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

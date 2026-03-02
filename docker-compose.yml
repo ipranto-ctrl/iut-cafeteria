@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # 1. The Main Database (For users, stock, and permanent orders)
+  postgres:
+    image: postgres:15-alpine
+    container_name: cafeteria-db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: cafeteria
+    ports:
+      - "5432:5432"
+    restart: always
+
+  # 2. The High-Speed Cache (For instantly checking if spaghetti is in stock)
+  redis:
+    image: redis:7-alpine
+    container_name: cafeteria-cache
+    ports:
+      - "6379:6379"
+    restart: always
+
+  # 3. The Message Broker (For the asynchronous Kitchen Queue)
+  rabbitmq:
+    # We use the 'management' tag so we get a nice visual dashboard!
+    image: rabbitmq:3-management-alpine
+    container_name: cafeteria-broker
+    ports:
+      - "5672:5672"   # The port our Node.js apps will use to send messages
+      - "15672:15672" # The port for the visual web dashboard
+    restart: always

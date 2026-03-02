@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IUT Cafeteria - Smart Ordering</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        /* Global Dark Theme Settings */
+        :root {
+            --bg-dark: #0f1115;
+            --bg-card: #1a1d24;
+            --iut-red: #ef4444;
+            --iut-red-hover: #dc2626;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            background-image: radial-gradient(#2dd4bf15 1px, transparent 1px);
+            background-size: 30px 30px;
+            color: var(--text-main);
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        /* Top Navbar */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--iut-red);
+        }
+
+        .nav-logo { display: flex; align-items: center; gap: 15px; }
+        .nav-logo img { width: 40px; height: 40px; border-radius: 50%; object-fit: contain; background: white; padding: 2px;}
+        .nav-logo div h1 { margin: 0; font-size: 1.2rem; color: var(--iut-red); }
+        .nav-logo div p { margin: 0; font-size: 0.7rem; color: var(--text-muted); }
+
+        /* Login Container */
+        .login-wrapper { display: flex; justify-content: center; align-items: center; min-height: calc(100vh - 80px); }
+        .login-card {
+            background-color: var(--bg-card);
+            padding: 40px;
+            border-radius: 16px;
+            width: 350px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .login-card img { width: 65px; height: 65px; background: white; border-radius: 50%; padding: 5px; margin-bottom: 15px; }
+
+        input {
+            width: 100%; padding: 12px; margin-bottom: 15px;
+            background: var(--bg-dark); border: 1px solid #333;
+            color: white; border-radius: 8px; box-sizing: border-box;
+        }
+        input:focus { outline: none; border-color: var(--iut-red); }
+
+        button.primary-btn {
+            width: 100%; padding: 12px; background: var(--iut-red);
+            color: white; border: none; border-radius: 8px; font-weight: bold;
+            cursor: pointer; transition: 0.2s;
+        }
+        button.primary-btn:hover { background: var(--iut-red-hover); }
+        
+        button.secondary-btn {
+            width: 100%; padding: 12px; background: #3f3f46;
+            color: white; border: none; border-radius: 8px; font-weight: bold;
+            cursor: pointer; transition: 0.2s;
+        }
+        button.secondary-btn:hover { background: #52525b; }
+
+        .hidden { display: none !important; }
+
+        /* Main Dashboard Layout */
+        .dashboard-wrapper {
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .dashboard { 
+            display: grid; 
+            grid-template-columns: 1.5fr 1fr; 
+            gap: 30px; 
+            max-width: 900px;
+            width: 100%;
+        }
+
+        /* Column Wrappers to enable equal height stretching */
+        .column-wrapper {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header Layout */
+        .uni-header {
+            grid-column: 1 / -1;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .uni-header h1 {
+            font-size: 2.8rem;
+            font-weight: 800;
+            margin: 0;
+            color: var(--text-main);
+            letter-spacing: -0.5px;
+        }
+        .uni-header p {
+            color: var(--iut-red);
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+
+        /* Panel Titles */
+        .panel-title {
+            margin-top: 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+            font-size: 1.5rem;
+        }
+        
+        /* Menu Grid */
+        .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; } 
+        .menu-item {
+            background: var(--bg-card); padding: 20px; border-radius: 12px;
+            text-align: center; border: 1px solid rgba(255,255,255,0.05);
+        }
+        .menu-item h3 { margin-top: 0; color: var(--iut-red); }
+        .add-btn { background: #333; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; width: 100%; margin-top: 10px; font-weight: bold;}
+        .add-btn:hover { background: #444; }
+
+        /* Cart Sidebar */
+        .cart-section { 
+            background: var(--bg-card); 
+            padding: 25px; 
+            border-radius: 12px; 
+            border: 1px solid rgba(255,255,255,0.05); 
+            flex-grow: 1; /* This forces the box to stretch to the bottom! */
+            display: flex;
+            flex-direction: column;
+        }
+        .cart-content {
+            flex-grow: 1; /* This pushes the tracker container to the very bottom */
+        }
+        .cart-list { list-style: none; padding: 0; margin-bottom: 20px; margin-top: 0;}
+        .cart-list li { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; }
+        
+        /* Visual Tracker */
+        .tracker-container { margin-top: 30px; padding-top: 20px; border-top: 1px solid #333; text-align: center;}
+        .flow { display: flex; justify-content: space-between; align-items: center; position: relative; margin-top: 20px;}
+        .flow::before {
+            content: ''; position: absolute; top: 15px; left: 10%; right: 10%;
+            height: 2px; background: #333; z-index: 1;
+        }
+        .step {
+            width: 30px; height: 30px; border-radius: 50%; background: #333;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 2; font-size: 0.8rem; font-weight: bold; transition: 0.3s;
+        }
+        .step.active { background: var(--iut-red); box-shadow: 0 0 10px var(--iut-red); color: white;}
+        .step-labels { display: flex; justify-content: space-between; font-size: 0.75rem; margin-top: 8px; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <div class="nav-logo">
+            <img src="iut-logo.png" alt="IUT Logo">
+            <div>
+                <h1>IUT Cafeteria</h1>
+                <p>CSE Department • Fueling Engineers Since 1981</p>
+            </div>
+        </div>
+        <div>
+            <button class="secondary-btn" style="width: auto; padding: 6px 15px;" onclick="location.reload()">Logout</button>
+        </div>
+    </div>
+
+    <div id="login-section" class="login-wrapper">
+        <div class="login-card">
+            <img src="iut-logo.png" alt="IUT Logo">
+            <h2 style="margin-top: 0; color: var(--iut-red);">IUT Cafeteria</h2>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 25px;">CSE Department - Islamic University of Technology</p>
+            
+            <input type="text" id="studentId" placeholder="Student ID (e.g. 210041100)">
+            <input type="password" id="password" placeholder="Password">
+            
+            <div style="display: flex; gap: 10px; margin-top: 5px;">
+                <button class="primary-btn" onclick="login()">Login</button>
+                <button class="secondary-btn" onclick="register()">Register</button>
+            </div>
+            
+            <p id="login-msg" style="font-size: 0.85rem; margin-top: 15px; font-weight: bold; min-height: 20px;"></p>
+        </div>
+    </div>
+
+    <div id="dashboard-section" class="dashboard-wrapper hidden">
+        <div class="dashboard">
+            
+            <div class="uni-header">
+                <h1>Islamic University of Technology</h1>
+                <p>Smart Cafeteria System</p>
+            </div>
+
+            <div class="column-wrapper">
+                <h2 class="panel-title">Iftar Menu</h2>
+                <div class="menu-grid">
+                    <div class="menu-item">
+                        <h3>Spaghetti</h3>
+                        <p id="stock-Spaghetti" style="color:var(--text-muted); font-size: 0.9rem; font-weight: bold;">Loading...</p>
+                        <button class="add-btn" onclick="addToCart('Spaghetti')">+ Add to Cart</button>
+                    </div>
+                    <div class="menu-item">
+                        <h3>Biriyani</h3>
+                        <p id="stock-Biriyani" style="color:var(--text-muted); font-size: 0.9rem; font-weight: bold;">Loading...</p>
+                        <button class="add-btn" onclick="addToCart('Biriyani')">+ Add to Cart</button>
+                    </div>
+                    <div class="menu-item">
+                        <h3>Rice</h3>
+                        <p id="stock-Rice" style="color:var(--text-muted); font-size: 0.9rem; font-weight: bold;">Loading...</p>
+                        <button class="add-btn" onclick="addToCart('Rice')">+ Add to Cart</button>
+                    </div>
+                    <div class="menu-item">
+                        <h3>Juice</h3>
+                        <p id="stock-Juice" style="color:var(--text-muted); font-size: 0.9rem; font-weight: bold;">Loading...</p>
+                        <button class="add-btn" onclick="addToCart('Juice')">+ Add to Cart</button>
+                    </div>
+                    <div class="menu-item">
+                        <h3>Burger</h3>
+                        <p id="stock-Burger" style="color:var(--text-muted); font-size: 0.9rem; font-weight: bold;">Loading...</p>
+                        <button class="add-btn" onclick="addToCart('Burger')">+ Add to Cart</button>
+                    </div>
+                    <div class="menu-item">
+                        <h3>Halim</h3>
+                        <p id="stock-Halim" style="color:var(--text-muted); font-size: 0.9rem; font-weight: bold;">Loading...</p>
+                        <button class="add-btn" onclick="addToCart('Halim')">+ Add to Cart</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="column-wrapper">
+                <h2 class="panel-title">Your Tray</h2>
+                <div class="cart-section">
+                    
+                    <div class="cart-content">
+                        <ul class="cart-list" id="cart-items">
+                            <li style="color: var(--text-muted); justify-content: center;">Cart is empty</li>
+                        </ul>
+                        <button class="primary-btn" id="checkout-btn" onclick="placeOrder()" disabled style="background: #333; cursor: not-allowed;">Place Order</button>
+                    </div>
+
+                    <div class="tracker-container">
+                        <h3 style="font-size: 1rem; color: var(--text-muted); margin-top: 0;">Order Status</h3>
+                        <div class="flow">
+                            <div class="step" id="step-1">1</div>
+                            <div class="step" id="step-2">2</div>
+                            <div class="step" id="step-3">3</div>
+                        </div>
+                        <div class="step-labels">
+                            <span>Pending</span>
+                            <span>In Kitchen</span>
+                            <span>Collect</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
