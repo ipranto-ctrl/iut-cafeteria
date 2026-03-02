@@ -21,20 +21,28 @@ const pool = new Pool({
 });
 
 // 2. Automatically create the users table (THIS IS THE FUNCTION THAT WAS MISSING!)
-async function setupAuthDatabase() {
-  try {
-    await pool.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                student_id VARCHAR(20) PRIMARY KEY,
-                password_hash VARCHAR(255) NOT NULL
-            );
-        `);
-    console.log("👤 Users database table ready.");
-  } catch (err) {
-    console.error("Database connection failed:", err);
-  }
+// 2. Automatically create the users table (WITH RETRY LOGIC)
+async function setupAuthDatabase(retries = 5) {
+    while (retries > 0) {
+        try {
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS users (
+                    student_id VARCHAR(20) PRIMARY KEY,
+                    password_hash VARCHAR(255) NOT NULL
+                );
+            `);
+            console.log("👤 Users database table ready.");
+            return; // Success! Exit the loop.
+        } catch (err) {
+            console.error(`⚠️ Database not ready yet. Retrying in 3 seconds... (Retries left: ${retries - 1})`);
+            retries -= 1;
+            
+            // Wait for 3000 milliseconds (3 seconds) before the loop runs again
+            await new Promise(res => setTimeout(res, 3000));
+        }
+    }
+    console.error("❌ Fatal Error: Could not connect to PostgreSQL after multiple attempts.");
 }
-// Run the function
 setupAuthDatabase();
 
 const loginLimiter = rateLimit({
